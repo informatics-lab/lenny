@@ -2,7 +2,7 @@ class lenny:
 
     """
     Creates iris cubes, turns them into geographical plots and creates a video visualisation from them for time series data.
-
+    Timestamp data must be part of your file metadata as opposed to part of the file itself to use this tool.
     Recommended that requirements.txt is installed before installing this library. Download, cd to its directory and type 'pip  install -r requirements.txt' into shell.
     """
     
@@ -46,7 +46,7 @@ class lenny:
         filepaths = [os.path.join(folder_path, file) for file in filenames]
         return filepaths
     
-    def __load_uniform_cubes_from_filepath__(filepaths, add_coord=None, aggregate=None, subset=None, masking=None):
+    def __load_uniform_cubes__(filepaths, add_coord=None, aggregate=None, subset=None, masking=None):
     
         cubelist = iris.load(filepath)
 #may not work if don't add add_coord?
@@ -71,13 +71,6 @@ class lenny:
         if type(subset) == tuple:
             west, east, south, north = subset
             subset = cubelist[0].intersection(longitude=(west,east), latitude=(south,north))
-        
-        if type(cubelist) == iris.cube.Cube:
-            if subset==None:
-                subset = cubelist
-            if type(subset) == tuple:
-                west, east, south, north = subset
-                subset = cubelist.intersection(longitude=(west,east), latitude=(south,north))
                 
         if type(aggregate) == str:
             cubelist = cubelist.collapsed(aggregate, iris.analysis.SUM)
@@ -86,15 +79,13 @@ class lenny:
             subset = subset
         if type(masking)==float:
             subset.data = np.ma.masked_where(subset.data <= masking, subset.data)
-        
-    #processed_cube_list.append(subset)
     
         return subset
 
-    def load_uniform_cubes_from_filepath(filepaths, add_coord=None, aggregate=None, subset=None, masking=None, scheduler_address=None):
+    def load_uniform_cubes(filepaths, add_coord=None, aggregate=None, subset=None, masking=None, scheduler_address=None):
     
         """
-        Load cubes with uniform measurements from path to CF NetCDF, GRIB 1 & 2, PP and FieldsFiles files. Returns a list of processed  cubes.
+        Load cubes with uniform metadata from path to CF NetCDF, GRIB 1 & 2, PP and FieldsFiles files. Returns a list of cubes.
     
     
         Args:
@@ -117,34 +108,70 @@ class lenny:
     
         if scheduler_address is not None:
             client =  Client(scheduler_address)
-            lazycubes = db.from_sequence(filepaths).map(__load_uniform_cubes_from_filepath__)
+            lazycubes = db.from_sequence(filepaths).map(__load_uniform_cubes__)
             lazycubes = lazycubes.compute()
         if scheduler_address==None:
-            lazycubes = db.from_sequence(filepaths).map(__load_uniform_cubes_from_filepath__)
+            lazycubes = db.from_sequence(filepaths).map(__load_uniform_cubes__)
         #cubes = loadcubes.compute()
         return lazycubes
 
-    def __extract_cube_from_filepath__(filepath, constraint):
+    def __extract_cube__(filepath, constraint, add_coord=None, aggregate=None, subset=None, masking=None, scheduler_address=None):
     
         cube = iris.load_cube(filepath, constraint)
+        
+        if type(add_coord) == tuple:
+                meta_data_name, starting_index, final_index, new_dimension_name = add_coord
+                n = int(cube.attributes[meta_data_name][starting_index:final_index])
+                cube.add_aux_coord(iris.coords.AuxCoord(n, new_dimension_name))
+            
+        if subset==None:
+            subset = cube[0]
+        if type(subset) == tuple:
+            west, east, south, north = subset
+            subset = cube[0].intersection(longitude=(west,east), latitude=(south,north))
+                
+        if type(aggregate) == str:
+            cube = cube.collapsed(aggregate, iris.analysis.SUM)
+            
+        if masking==None:
+            subset = subset
+        if type(masking)==float:
+            subset.data = np.ma.masked_where(subset.data <= masking, subset.data)
     
-        return cube
+        return subset
 
-    def extract_cube_from_filepath(filepath, constraint):
+    def extract_cube(filepath, constraint, add_coord=None, aggregate=None, subset=None, masking=None, scheduler_address=None):
     
         """
-        Extracts a single cube from a cubelist extracted from filepath to CF NetCDF, GRIB 1 & 2, PP or FieldsFiles files.
+        Extracts a single cube from filepath to CF NetCDF, GRIB 1 & 2, PP or FieldsFiles files. Will take all files grouped together by specified metadata and merge them into one cube.
+        
+        
+        Args:
     
-        loaded_path: Path to the file containing the cubelist.
+        filepath: Path to the file containing the data.
     
-        constraint: a string, float, or integer describing a property of the cube (e.g. name, model level number, etc...) that distinguishes it from other cubes in the cubelist.
+        constraint: a string, float, or integer describing an item of metadata (e.g. name, model level number, etc...) that distinguishes it from other files.
+        These files will then be merged into one cube.
+        
         Example: ('./prods_op_mogreps-uk_20130703_03_00_003.nc','stratiform_snowfall_rate')
+        
+        
+        Kwargs:
+        
+        add_coord: Turns a metadata attribute into a new cube dimension. Takes a tuple in this format - (meta_data_name,    starting_index, final_index, new_dimension_name). meta_data_name=string value of attribute, starting_index=index of starting numerical value in attribute to be contained in new dimension, final_index=end index of numerical value in attribute to be contained in new dimension, new_dimension_name=string value of name of new cube dimension.
+    
+        aggregate: Takes dimension to collapse cube along and returns cumulative sum of coordinate along that dimension. Only collapses along dimension if cube has more than 2 dimensions. Dimension must contain data non-uniform across the cube.
+    
+        subset: Restricts data to an intersection of the cube with specified coordinate ranges. Takes a tuple containing floats in this format - (west, east, south, north).
+    
+        masking: Masks all data that is smaller than a specified value. Takes a float.
+        
         """
     
-        loadcubes = db.from_sequence(filepaths).map(__extract_cube_from_filepath__)
+        loadcubes = db.from_sequence(filepaths).map(__extract_cube__)
         cubes = loadcubes.compute()
         
-    def __make_plots_from_cubes__(cube_list, save_filepath, figsize=(16,9), terrain=StamenTerrain, logscaled=True, vmin=None, vmax=None, colourmap='viridis', colourbarticks=None, colourbarticklabels=None, colourbar_label=None, markerpoint=None, markercolor='#B9DC0C', timestamp=None, time_box_position=None, plottitle=None, box_colour='#FFFFFF', textcolour=None, coastlines=False):
+    def __make_plots__(cube_list, save_filepath, figsize=(16,9), terrain=StamenTerrain, logscaled=True, vmin=None, vmax=None, colourmap='viridis', colourbarticks=None, colourbarticklabels=None, colourbar_label=None, markerpoint=None, markercolor='#B9DC0C', timestamp=None, time_box_position=None, plottitle=None, box_colour='#FFFFFF', textcolour=None, coastlines=False):
 
 
         sequence=list(enumerate(cube_list))
@@ -217,9 +244,61 @@ class lenny:
             picturename = save_filepath + "%04i.png" % cubenumber
             plt.savefig(picturename, dpi=200, bbox_inches="tight")
             
-    def try_make_plots_from_cubes
+    def try_make_plots_from_cubes(cube, save_filepath, figsize=(16,9), terrain=StamenTerrain, logscaled=True, vmin=None, vmax=None, colourmap='viridis', colourbarticks=None, colourbarticklabels=None, colourbar_label=None, markerpoint=None, markercolor='#B9DC0C', timestamp=None, time_box_position=None, plottitle=None, box_colour='#FFFFFF', textcolour=None, coastlines=False):
+        
+        """"
+        Makes sample plot from cube. Can be used to refine plot specifications.
+        
+        Args:
+    
+        cube_list: Takes a cube.
+    
+        save_filepath: Filepath where the plot will be saved.
+    
+        Kwargs:
+    
+        figsize: Sets size of figure. Default is 16 in x 9 in. Takes a tuple of integers or floats (e.g. (16, 9)).
+    
+        terrain: Sets background map image on plot. Default is Stamen Terrain. See further options here: https://scitools.org.uk/cartopy/docs/latest/cartopy/io/img_tiles.html
+    
+        logscaled: Plots data on a logarithmic (to the base-10) scale. Takes True or False. Makes more appealing visualisations of skewed data. Default is True.
+    
+        vmin: set lowest value to be displayed. Takes a float.
+    
+        vmax: set highest value to be displayed. Takes a float.
+    
+        colourmap: Sets colour map for the plot. Default is 'viridis'. Other colourmaps: 'magma', 'plasma', 'inferno', 'cividis'. See https://matplotlib.org/tutorials/colors/colormaps.html for more colourmap options.
+    
+        colourbarticks: Sets position within data of ticks on colourbar. Takes a list of floats or integers, e.g. [10, 100, 1000].
+    
+        colourbarticklabels: Sets labels for colourbar ticks. Takes a list, eg. [10, 100, 1000].
+    
+        colourbar_label: Sets colourbar legend. Takes a string.
+    
+        markerpoint: Plots a marker on the map based on global coordinates. Takes a tuple in this format - (longitude, latitude, 'name_of_place'), longitude and latitude must be a float, name_of_place must be a string.
+    
+        markercolor: Color of the location marker. Must be given as a string. Default is '#B9DC0C'.
+    
+        timestamp: Places a timestamp box on each plot. Takes a string referring to name of timestep metadata within the cube. It must contain timesteps in original metadata to use this, as this takes the name of the timestep attribute.
+    
+        plottitle: Displays the title of your video horizontally across the top of the plots. Takes a string.
+    
+        time_box_position: Position of timestamp box on the plot. Takes a tuple of integers eg. (60, 0)
+    
+        box_colour: Sets colour of title box and colourbar label box. Takes a string.
+    
+        textcolor: Sets colour of text within boxes. Takes a string.
+        
+        coastlines: Draw coastlines around land on the map. Takes True or False.
+    
+        """
+        
+        cube_list = cube
+        __make_plots_from_cubes__(cube_list)
+        
+        
 
-    def make_plots_from_cubes(cube_list, save_filepath, figsize=(16,9), terrain=StamenTerrain, logscaled=True, vmin=None, vmax=None, colourmap='viridis', colourbarticks=None, colourbarticklabels=None, colourbar_label=None, markerpoint=None, markercolor='#B9DC0C', timestamp=None, time_box_position=None, plottitle=None, box_colour='#FFFFFF', textcolour=None, coastlines=False):
+    def make_plots(cube_list, save_filepath, figsize=(16,9), terrain=StamenTerrain, logscaled=True, vmin=None, vmax=None, colourmap='viridis', colourbarticks=None, colourbarticklabels=None, colourbar_label=None, markerpoint=None, markercolor='#B9DC0C', timestamp=None, time_box_position=None, plottitle=None, box_colour='#FFFFFF', textcolour=None, coastlines=False):
     
         """
         Makes plots from list of iris cubes.
@@ -270,7 +349,7 @@ class lenny:
     
         """
     
-        makingplots = db.from_sequence(cube_list).map(__make_plots_from_cubes__)
+        makingplots = db.from_sequence(cube_list).map(__make_plots__)
         plots = makingplots.compute()
     
     def make_video(picture_filepath, end_video_filepath, interpolate=False, resize_video=False):
