@@ -1,7 +1,7 @@
 class lenny:
 
     """
-    Creates iris cubes, turns them into geographical plots and creates a video visualisation from them.
+    Creates iris cubes, turns them into geographical plots and creates a video visualisation from them for time series data.
 
     Recommended that requirements.txt is installed before installing this library. Download, cd to its directory and type 'pip  install -r requirements.txt' into shell.
     """
@@ -144,7 +144,7 @@ class lenny:
         loadcubes = db.from_sequence(filepaths).map(__extract_cube_from_filepath__)
         cubes = loadcubes.compute()
         
-    def __make_plots_from_cubes__(cube_list, save_filepath, figsize=(16,9), terrain=StamenTerrain, logscaled=True, vmin=None, vmax=None, colourmap='viridis', colourbarticks=None, colourbarticklabels=None, colourbar_label=None, markerpoint=None, markercolor='#B9DC0C', timestamp=None, time_box_position=???, plottitle=None, box_colour='#FFFFFF'???Where is this used?, textcolour=???, coastlines=???):
+    def __make_plots_from_cubes__(cube_list, save_filepath, figsize=(16,9), terrain=StamenTerrain, logscaled=True, vmin=None, vmax=None, colourmap='viridis', colourbarticks=None, colourbarticklabels=None, colourbar_label=None, markerpoint=None, markercolor='#B9DC0C', timestamp=None, time_box_position=None, plottitle=None, box_colour='#FFFFFF', textcolour=None, coastlines=False):
 
 
         sequence=list(enumerate(cube_list))
@@ -209,15 +209,17 @@ class lenny:
                 fig.text(longitude_of_time_box, latitude_of_time_box, "Time, date: "+ datetime, fontproperties='FT2Font', alpha=0.7, fontsize=8 , transform=timetransform, bbox=dict(facecolor=markercolor, edgecolor='#2A2A2A', boxstyle='round'))
     
             titleaxes = plt.axes([0.2, 0.8, 0.65, 0.04], facecolor=box_colour)
-            titleaxes.text(0.5,0.25, plottitle, horizontalalignment = 'center',  fontproperties='FT2Font', fontsize=10, weight=600, color = textcolor)
+            titleaxes.text(0.5,0.25, plottitle, horizontalalignment = 'center',  fontproperties='FT2Font', fontsize=10, weight=600, color = textcolour)
             titleaxes.set_yticks([])
             titleaxes.set_xticks([])
 
     
             picturename = save_filepath + "%04i.png" % cubenumber
             plt.savefig(picturename, dpi=200, bbox_inches="tight")
+            
+    def try_make_plots_from_cubes
 
-    def make_plots_from_cubes(cube_list, save_filepath, figsize=(16,9), terrain=StamenTerrain, logscaled=True, vmin=None, vmax=None, colourmap='viridis', colourbarticks=None, colourbarticklabels=None, colourbar_label=None, markerpoint=None, markercolor='#B9DC0C', timestamp=None, plottitle=None, box_colour='#FFFFFF'):
+    def make_plots_from_cubes(cube_list, save_filepath, figsize=(16,9), terrain=StamenTerrain, logscaled=True, vmin=None, vmax=None, colourmap='viridis', colourbarticks=None, colourbarticklabels=None, colourbar_label=None, markerpoint=None, markercolor='#B9DC0C', timestamp=None, time_box_position=None, plottitle=None, box_colour='#FFFFFF', textcolour=None, coastlines=False):
     
         """
         Makes plots from list of iris cubes.
@@ -258,11 +260,13 @@ class lenny:
     
         plottitle: Displays the title of your video horizontally across the top of the plots. Takes a string.
     
-        time_box_position=???
+        time_box_position: Position of timestamp box on the plot. Takes a tuple of integers eg. (60, 0)
     
-        box_colour=???
+        box_colour: Sets colour of title box and colourbar label box. Takes a string.
     
-        textcolor=???
+        textcolor: Sets colour of text within boxes. Takes a string.
+        
+        coastlines: Draw coastlines around land on the map. Takes True or False.
     
         """
     
@@ -283,7 +287,7 @@ class lenny:
     
         Kwargs:
     
-        interpolate: Creates additional frames between existing, meaning goes from 24 to 60 fps. This is done by taking the mean of the adjacent frames. Default is False. Takes True or False. 
+        interpolate: Creates additional frames between existing, meaning goes from 24 to 60 fps. This is done by taking the mean of the adjacent frames. Default is False. Takes True or False.
     In order to use interpolate, must have ffmpeg 3.1 installed or higher. If you're video is over 1000??? bytes in height, set resize_video=True.
     
         resize_video: Creates a video, then resizes it to have a height of 1000 bytes, with width adjusted accordingly. Default False. Recommended if you wish to minterpolate and your video is large in size. 
