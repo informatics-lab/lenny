@@ -61,20 +61,20 @@ def __load_uniform_cubes__(filepath, add_coord=None, aggregate=None, subset=None
     cubelist = cubelist.merge_cube()
             
     if subset==None:
-        subset = cubelist[0]
+        new_cube = cubelist[0]
     if type(subset) == tuple:
         west, east, south, north = subset
-        subset = cubelist[0].intersection(longitude=(west,east), latitude=(south,north))
+        new_cube = cubelist[0].intersection(longitude=(west,east), latitude=(south,north))
                 
     if type(aggregate) == str:
-        cubelist = cubelist.collapsed(aggregate, iris.analysis.SUM)
+        new_cube = new_cube.collapsed(aggregate, iris.analysis.SUM)
             
     if masking==None:
-        subset = subset
+        new_cube = new_cube
     if type(masking)==float:
-        subset.data = np.ma.masked_where(subset.data <= masking, subset.data)
+        new_cube.data = np.ma.masked_where(new_cube.data <= masking, new_cube.data)
     
-    return subset
+    return new_cube
 
 def load_uniform_cubes(filepath, add_coord=None, aggregate=None, subset=None, masking=None, scheduler_address=None):
     
@@ -169,7 +169,9 @@ def load_uniform_cubes(filepath, add_coord=None, aggregate=None, subset=None, ma
         loadcubes = db.from_sequence(filepaths).map(__extract_cube__)
         cubes = loadcubes.compute()
         
-def __make_plots__(cube, save_filepath, figsize=(16,9), terrain=cimgt.StamenTerrain(), logscaled=True, vmin=None, vmax=None, colourmap='viridis', colourbarticks=None, colourbarticklabels=None, colourbar_label=None, markerpoint=None, markercolor='#B9DC0C', timestamp=None, time_box_position=None, plottitle=None, box_colour='#FFFFFF', textcolour=None, coastlines=False):
+def __make_plots__(cube_list, save_filepath, figsize=(16,9), terrain=cimgt.StamenTerrain(), logscaled=True, vmin=None, vmax=None, colourmap='viridis', colourbarticks=None, colourbarticklabels=None, colourbar_label=None, markerpoint=None, markercolor='#B9DC0C', timestamp=None, time_box_position=None, plottitle=None, box_colour='#FFFFFF', textcolour=None, coastlines=False):
+    
+    sequence=list(enumerate(cube_list))
 
     for cubetuple in sequence:
         cubenumber, cube = cubetuple
@@ -222,7 +224,7 @@ def __make_plots__(cube, save_filepath, figsize=(16,9), terrain=cimgt.StamenTerr
             fig.plot(longitude, latitude, marker='^', color=markercolor, markersize=12, transform=ccrs.Geodetic())
             geodetic_transform = ccrs.Geodetic()._as_mpl_transform(fig)
             text_transform = offset_copy(geodetic_transform, units='dots', y=+75)
-            fig.text(longitude, latitude, name_of_place, fontproperties='FT2Font', alpha=1, fontsize=8, verticalalignment='center', horizontalalignment='right', transform=text_transform, bbox=dict(facecolor=markercolor, edgecolor='#2A2A2A', boxstyle='round'))
+            fig.text(longitude, latitude, u+name_of_place, fontproperties='FT2Font', alpha=1, fontsize=8, verticalalignment='center', horizontalalignment='right', transform=text_transform, bbox=dict(facecolor=markercolor, edgecolor='#2A2A2A', boxstyle='round'))
     
         if timestamp is not None:
             attributedict = subset.attributes
@@ -293,7 +295,7 @@ def try_make_plots_from_cubes(cube, save_filepath, figsize=(16,9), terrain=cimgt
         
         
 
-def make_plots(cube, save_filepath, figsize=(16,9), terrain=cimgt.StamenTerrain(), logscaled=True, vmin=None, vmax=None, colourmap='viridis', colourbarticks=None, colourbarticklabels=None, colourbar_label=None, markerpoint=None, markercolor='#B9DC0C', timestamp=None, time_box_position=None, plottitle=None, box_colour='#FFFFFF', textcolour=None, coastlines=False):
+def make_plots(cube_list, save_filepath, figsize=(16,9), terrain=cimgt.StamenTerrain(), logscaled=True, vmin=None, vmax=None, colourmap='viridis', colourbarticks=None, colourbarticklabels=None, colourbar_label=None, markerpoint=None, markercolor='#B9DC0C', timestamp=None, time_box_position=None, plottitle=None, box_colour='#FFFFFF', textcolour=None, coastlines=False):
     
     """
     Makes plots from list of iris cubes.
@@ -350,8 +352,6 @@ def make_plots(cube, save_filepath, figsize=(16,9), terrain=cimgt.StamenTerrain(
     from dask_kubernetes import KubeCluster
     
     client = Client()
-    
-    sequence=list(enumerate(cube))
     
     makingplots = db.from_sequence(cube_list).map(__make_plots__)
     plots = makingplots.compute()
