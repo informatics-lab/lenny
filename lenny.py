@@ -108,7 +108,7 @@ def __load_uniform_cubes__(filepath, add_coord=None, aggregate=None, subset=None
         new_cube = new_cube[0]
         return new_cube
     
-    return new_cube
+    return (filenumber, new_cube)
     
     
 #    if type(aggregate) == str:
@@ -176,71 +176,69 @@ def load_uniform_cubes(filepath, add_coord=None, aggregate=None, subset=None, ma
         lazycubes = db.from_sequence(filepath).map(__load_uniform_cubes__)
     return lazycubes
 
-    def __extract_cube__(filepath, constraint, add_coord=None, aggregate=None, subset=None, masking=None, scheduler_address=None):
-    
-        cube = iris.load_cube(filepath, constraint)
-        
-        if type(add_coord) == tuple:
-                meta_data_name, starting_index, final_index, new_dimension_name = add_coord
-                n = int(cube.attributes[meta_data_name][starting_index:final_index])
-                cube.add_aux_coord(iris.coords.AuxCoord(n, new_dimension_name))
-            
-        if subset==None:
-            subset = cube[0]
-        if type(subset) == tuple:
-            west, east, south, north = subset
-            subset = cube[0].intersection(longitude=(west,east), latitude=(south,north))
-                
-        if type(aggregate) == str:
-            cube = cube.collapsed(aggregate, iris.analysis.SUM)
-            
-        if masking==None:
-            subset = subset
-        if type(masking)==float:
-            subset.data = np.ma.masked_where(subset.data <= masking, subset.data)
-    
-        return subset
+def __extract_cube__(filepath, constraint, add_coord=None, aggregate=None, subset=None, masking=None, scheduler_address=None):
 
-    def extract_cube(filepath, constraint, add_coord=None, aggregate=None, subset=None, masking=None, scheduler_address=None):
+    cube = iris.load_cube(filepath, constraint)
+        
+    if type(add_coord) == tuple:
+        meta_data_name, starting_index, final_index, new_dimension_name = add_coord
+        n = int(cube.attributes[meta_data_name][starting_index:final_index])
+        cube.add_aux_coord(iris.coords.AuxCoord(n, new_dimension_name))
+            
+    if subset==None:
+        subset = cube[0]
+    if type(subset) == tuple:
+        west, east, south, north = subset
+        subset = cube[0].intersection(longitude=(west,east), latitude=(south,north))
+                
+    if type(aggregate) == str:
+        cube = cube.collapsed(aggregate, iris.analysis.SUM)
+            
+    if masking==None:
+        subset = subset
+    if type(masking)==float:
+        subset.data = np.ma.masked_where(subset.data <= masking, subset.data)
     
-        """
-        Extracts a single cube from filepath to CF NetCDF, GRIB 1 & 2, PP or FieldsFiles files. Will take all files grouped together by specified metadata and merge them into one cube.
+    return subset
+
+def extract_cube(filepath, constraint, add_coord=None, aggregate=None, subset=None, masking=None, scheduler_address=None):
+    
+    """
+    Extracts a single cube from filepath to CF NetCDF, GRIB 1 & 2, PP or FieldsFiles files. Will take all files grouped together by specified metadata and merge them into one cube.
         
         
-        Args:
+    Args:
     
-        filepath: Path to the file containing the data.
+    filepath: Path to the file containing the data.
     
-        constraint: a string, float, or integer describing an item of metadata (e.g. name, model level number, etc...) that distinguishes it from other files.
-        These files will then be merged into one cube.
+    constraint: a string, float, or integer describing an item of metadata (e.g. name, model level number, etc...) that distinguishes it from other files.
+    These files will then be merged into one cube.
         
-        Example: ('./prods_op_mogreps-uk_20130703_03_00_003.nc','stratiform_snowfall_rate')
+    Example: ('./prods_op_mogreps-uk_20130703_03_00_003.nc','stratiform_snowfall_rate')
         
         
-        Kwargs:
+    Kwargs:
         
-        add_coord: Turns a metadata attribute into a new cube dimension. Takes a tuple in this format - (meta_data_name,    starting_index, final_index, new_dimension_name). meta_data_name=string value of attribute, starting_index=index of starting numerical value in attribute to be contained in new dimension, final_index=end index of numerical value in attribute to be contained in new dimension, new_dimension_name=string value of name of new cube dimension.
+    add_coord: Turns a metadata attribute into a new cube dimension. Takes a tuple in this format - (meta_data_name,    starting_index, final_index, new_dimension_name). meta_data_name=string value of attribute, starting_index=index of starting numerical value in attribute to be contained in new dimension, final_index=end index of numerical value in attribute to be contained in new dimension, new_dimension_name=string value of name of new cube dimension.
     
-        aggregate: Takes dimension to collapse cube along and returns cumulative sum of coordinate along that dimension. Only collapses along dimension if cube has more than 2 dimensions. Dimension must contain data non-uniform across the cube.
+    aggregate: Takes dimension to collapse cube along and returns cumulative sum of coordinate along that dimension. Only collapses along dimension if cube has more than 2 dimensions. Dimension must contain data non-uniform across the cube.
     
-        subset: Restricts data to an intersection of the cube with specified coordinate ranges. Takes a tuple containing floats in this format - (west, east, south, north).
+    subset: Restricts data to an intersection of the cube with specified coordinate ranges. Takes a tuple containing floats in this format - (west, east, south, north).
     
-        masking: Masks all data that is smaller than a specified value. Takes a float.
+    masking: Masks all data that is smaller than a specified value. Takes a float.
         
-        """
+    """
     
-        loadcubes = db.from_sequence(filepaths).map(__extract_cube__)
-        cubes = loadcubes.compute()
+    loadcubes = db.from_sequence(filepaths).map(__extract_cube__)
+    cubes = loadcubes.compute()
         
 def __make_plots__(cube_list, save_filepath, figsize=(16,9), terrain=cimgt.StamenTerrain(), logscaled=True, vmin=None, vmax=None, colourmap='viridis', colourbarticks=None, colourbarticklabels=None, colourbar_label=None, markerpoint=None, markercolor='#B9DC0C', timestamp=None, time_box_position=None, plottitle=None, box_colour='#FFFFFF', textcolour=None, coastlines=False):
     
     sequence=list(enumerate(cube_list))
 
-    for cubetuple in sequence:
+    for cubetuple in cube_list:
         cubenumber, cube = cubetuple
         
-        if figsize == False:
-            fig, ax = plt.subplots(figsize=(16,9))
         if type(figsize) == tuple:
             fig, ax = plt.subplots(figsize=figsize)
     
