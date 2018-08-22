@@ -59,22 +59,84 @@ def __load_uniform_cubes__(filepath, add_coord=None, aggregate=None, subset=None
     equalise_attributes(cubelist)
         
     cubelist = cubelist.merge_cube()
-            
-    if subset==None:
-        new_cube = cubelist[0]
-    if type(subset) == tuple:
+    
+    if (type(aggregate) == str) and (type(subset) == tuple) and (type(masking)==float):
+        new_cube = cubelist.collapsed(aggregate, iris.analysis.SUM)
         west, east, south, north = subset
-        new_cube = cubelist[0].intersection(longitude=(west,east), latitude=(south,north))
-                
-    if type(aggregate) == str:
-        new_cube = new_cube.collapsed(aggregate, iris.analysis.SUM)
-            
-    if masking==None:
-        new_cube = new_cube
-    if type(masking)==float:
+        new_cube = new_cube[0].intersection(longitude=(west,east), latitude=(south,north))
         new_cube.data = np.ma.masked_where(new_cube.data <= masking, new_cube.data)
+        return new_cube
+    
+    if (type(aggregate)==str) and (type(subset)==tuple and (masking==None)):
+        new_cube = cubelist.collapsed(aggregate, iris.analysis.SUM)
+        west, east, south, north = subset
+        new_cube = new_cube[0].intersection(longitude=(west,east), latitude=(south,north))
+        return new_cube
+    
+    if (type(aggregate)==str) and (subset==None) and (masking==None):
+        new_cube = cubelist.collapsed(aggregate, iris.analysis.SUM)
+        new_cube = new_cube[0]
+        return new_cube
+    
+    if (type(aggregate)==str) and (subset==None) and (type(masking)==float):
+        new_cube = cubelist.collapsed(aggregate, iris.analysis.SUM)
+        new_cube = new_cube[0]
+        new_cube.data = np.ma.masked_where(new_cube.data <= masking, new_cube.data)
+        return new_cube
+        
+    if (aggregate==None) and (type(subset)==tuple) and (masking==None):
+        new_cube = cubelist
+        west, east, south, north = subset
+        new_cube = new_cube[0].intersection(longitude=(west,east), latitude=(south,north))
+        return new_cube
+    
+    if (aggregate==None) and (type(subset)==tuple) and (type(masking)==float):
+        new_cube = cubelist
+        west, east, south, north = subset
+        new_cube = new_cube[0].intersection(longitude=(west,east), latitude=(south,north))
+        new_cube.data = np.ma.masked_where(new_cube.data <= masking, new_cube.data)
+        return new_cube
+    
+    if (aggregate==None) and (subset==None) and (type(masking)==float):
+        new_cube = cubelist
+        new_cube = new_cube[0]
+        new_cube.data = np.ma.masked_where(new_cube.data <= masking, new_cube.data)
+        return new_cube
+    
+    if (aggregate==None) and (subset==None) and (masking==None):
+        new_cube = cubelist
+        new_cube = new_cube[0]
+        return new_cube
     
     return new_cube
+    
+    
+#    if type(aggregate) == str:
+#        new_cube = cubelist.collapsed(aggregate, iris.analysis.SUM)
+#        return new_cube
+#    
+#    if aggregate == None:
+#        new_cube = cubelist
+#        return new_cube
+#            
+#    if subset==None:
+#        new_cube = new_cube[0]
+#        return new_cube
+#    
+#    if type(subset) == tuple:
+#        west, east, south, north = subset
+#        new_cube = new_cube[0].intersection(longitude=(west,east), latitude=(south,north))
+#        return new_cube
+#    
+#    if type(masking)==float:
+#        new_cube.data = np.ma.masked_where(new_cube.data <= masking, new_cube.data)
+#        return new_cube
+#    
+#    if masking==None:
+#        new_cube = new_cube
+#        return new_cube
+#    
+#    return new_cube
 
 def load_uniform_cubes(filepath, add_coord=None, aggregate=None, subset=None, masking=None, scheduler_address=None):
     
@@ -110,6 +172,7 @@ def load_uniform_cubes(filepath, add_coord=None, aggregate=None, subset=None, ma
         lazycubes = db.from_sequence(filepath).map(__load_uniform_cubes__)
         lazycubes = lazycubes.compute()
     if scheduler_address==None:
+        client = Client()
         lazycubes = db.from_sequence(filepath).map(__load_uniform_cubes__)
     return lazycubes
 
