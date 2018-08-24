@@ -22,7 +22,6 @@ import cartopy.io.img_tiles as cimgt
 import os
 from iris.cube import CubeList
 from matplotlib.widgets import Slider
-import ffmpeg
 import subprocess
 import matplotlib.font_manager as fm
 import matplotlib.colors as colors
@@ -399,6 +398,7 @@ def try_make_plots_from_cubes(cube, save_filepath, figsize=(16,9), terrain=cimgt
     
     
 def make_video(picture_filepath, end_video_filepath, interpolate=False, resize_video=False):
+    
     """
     Zips together all png files within a specified filepath to make a video. Ensure that ffmpeg is installed in your environment before running.
     
@@ -436,7 +436,7 @@ def make_video(picture_filepath, end_video_filepath, interpolate=False, resize_v
         clip = mp.VideoFileClip(end_video_filepath)
         clip_resized = clip.resize(height=1000)
         clip_resized.write_videofile(end_video_filepath)
-        return_value = subprocess.call(["/home/jovyan/.imageio/ffmpeg/ffmpeg-linux64-v3.3.1", "-i", end_video_filepath, "-filter", "minterpolate", end_video_filepath])
+        return_value = subprocess.call(["ffmpeg", "-i", end_video_filepath, "-filter", "minterpolate", end_video_filepath])
         return return_value
     
 if __name__ == "__main__":
